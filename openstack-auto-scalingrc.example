@@ -1,0 +1,8 @@
+UNDERCLOUDRC="/home/stack/stackrc"
+OVERCLOUDRC="/home/stack/templates/overcloudrc"
+LOCKFILE="/home/stack/openstack-auto-scaling/openstack-auto-scaling.lock"
+UCUPN="100"
+AGG_GROUPS="CPUv1"
+SHUTDOWN_TIMEOUT="120"
+STARTUP_TIMEOUT="900"
+PIDFILE="/home/stack/openstack-auto-scaling/openstack-auto-scaling.pid"
