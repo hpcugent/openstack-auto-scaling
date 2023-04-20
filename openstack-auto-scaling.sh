@@ -283,8 +283,6 @@ run_on_agg_groups() {
   done
 }
 
-#while getopts ":thc:u:l" options; do
-#  case "${options}" in
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     -h|--help)
