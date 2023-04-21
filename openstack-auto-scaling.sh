@@ -132,22 +132,23 @@ lockfile_check() {
 
 get_agg_group_status() {
 #usage: get_agg_group_status AGG_GROUP
-  local agg_group="$1"
+  local agg_group
+  agg_group="$1"
   openstack_overcloud aggregate show "$agg_group" &>/dev/null
   local RETVAL
   RETVAL="$?"
   if [ "$RETVAL" -ne 0 ]; then
     log "1" "Unable to find aggregation group $agg_group" && return 1
   else
-    local agg_group_hypervisor_list 
+    local agg_group_hypervisor_list agg_group_hypervisor_filter
     agg_group_hypervisor_list="$(openstack_overcloud aggregate show "$agg_group" -f json -c hosts |jq --raw-output '.hosts[]')"
-    local agg_group_hypervisor_filter
     agg_group_hypervisor_filter="$(echo "$agg_group_hypervisor_list"|tr '\n' '|'|sed 's/|$//g')"
 
-    local hyp_list
+    #below variable necessary as global
     hyp_list="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "vCPUs Used" -c "State"| \
                   grep -E "$agg_group_hypervisor_filter"|sort)"
 
+    local computes_number_up_with_vm
     computes_number="$(echo "$hyp_list"|wc -l)"
     computes_number_up_with_vm="$(echo "$hyp_list"|grep " up "|grep -vc " 0$")"
     computes_number_up_before_logic="$(echo "$hyp_list"|grep -c " up ")"
@@ -155,18 +156,16 @@ get_agg_group_status() {
     [ "$computes_number_up_after_logic" -gt "$computes_number" ] && \
       computes_number_up_after_logic="$computes_number"
 
+    #below variables necessary as global
     computes_number_difference="$((computes_number_up_before_logic - computes_number_up_after_logic))"
+    computes_hostnames_up="$(echo "$hyp_list"|grep " up "|awk '{print $1}'|xargs)"
+    computes_hostnames_down_with_no_vm="$(echo "$hyp_list"|grep " down "|grep " 0$"|awk '{print $1}'|xargs)"
 
-    computes_hostnames_up="$(echo "$hyp_list"|grep " up "|awk '{print $1}')"
-    computes_hostnames_up_available_for_shutdown="$(echo "$hyp_list"|grep " up "|grep " 0$"|awk '{print $1}')"
-    computes_hostnames_down_with_no_vm="$(echo "$hyp_list"|grep " down "|grep " 0$"|awk '{print $1}')"
-
-    local computes_number_down_with_vm
+    local computes_number_down_with_vm computes_hostnames_down_with_vm
     computes_number_down_with_vm="$(echo "$hyp_list"|grep " down "|grep -vc " 0$")"
-    local computes_hostnames_down_with_vm
-    computes_hostnames_down_with_vm="$(echo "$hyp_list"|grep " down "|grep -v " 0$"|awk '{print $1}')"
+    computes_hostnames_down_with_vm="$(echo "$hyp_list"|grep " down "|grep -v " 0$"|awk '{print $1}'|xargs)"
     [ "$computes_number_down_with_vm" -ne 0 ] && \
-      log "2" "IMPORTANT: hypervisors in aggregation group $agg_group down with VMs: $(echo $computes_hostnames_down_with_vm)"
+      log "2" "IMPORTANT: hypervisors in aggregation group $agg_group down with VMs: $computes_hostnames_down_with_vm"
   fi
   return 0
 }
@@ -177,112 +176,106 @@ print_agg_group_status() {
   log "0" "Number of hypervisors in aggregation group $agg_group: $computes_number"
   log "0" "Number of hypervisors in aggregation group $agg_group up: $computes_number_up_before_logic"
   log "0" "Expected number of hypervisors in aggregation group $agg_group up: $computes_number_up_after_logic"
-  log "0" "Hypervisors in aggregation group $agg_group up: $(echo $computes_hostnames_up)"
-  log "0" "Hypervisors in aggregation group $agg_group down: $(echo $computes_hostnames_down_with_no_vm)"
+  log "0" "Hypervisors in aggregation group $agg_group up: $computes_hostnames_up"
+  log "0" "Hypervisors in aggregation group $agg_group down: $computes_hostnames_down_with_no_vm"
 }
 
-computes_shutdown() {
+computes_action() {
 #function expects global variables
-  local computes_hostnames_to_disable
-  computes_hostnames_to_disable="$(echo "$computes_hostnames_up_available_for_shutdown"|tail -"$computes_number_difference")"
-  local computes_hostnames_to_shutdown
-  computes_hostnames_to_shutdown="$(echo "$computes_hostnames_up_available_for_shutdown"|tail -"$computes_number_difference"| \
-                                            awk -F\. '{print $1}')"
-  print_agg_group_status
-  if [ "$TESTMODE" == "false" ]; then
-    log "0" "Disabling nova-compute service for hypervisors: $(echo $computes_hostnames_to_disable) now.."
-    echo "$computes_hostnames_to_disable"| while read -r host; do 
-                                             openstack_overcloud compute service set --disable --disable-reason "$SCRIPT_NAME" "$host" nova-compute
-                                           done
-    log "0" "Shutting down hypervisors: $(echo $computes_hostnames_to_disable) now.."
-    echo "$computes_hostnames_to_shutdown"| while read -r host; do
-                                              openstack_undercloud server stop "$host"
-                                            done
+#usage: computes_action shutdown|startup hostnames_fqdn_list
+  local action hostnames_fqdn_list_for_action hostnames_list_for_action filter
+  action="$1"
+  hostnames_fqdn_list_for_action="$2"
+  hostnames_list_for_action="$(echo "$hostnames_fqdn_list_for_action"|xargs -n1 echo|awk -F\. '{print $1}'|xargs)"
+  filter="$(echo "$hostnames_fqdn_list_for_action"|tr ' ' '|')"
+
+  if [ "$action" == "shutdown" ]; then
+    log "0" "Disabling nova-compute service for hypervisors: $hostnames_fqdn_list_for_action now.."
+    for host_fqdn in $hostnames_fqdn_list_for_action; do
+      openstack_overcloud compute service set --disable --disable-reason "$SCRIPT_NAME" "$host_fqdn" nova-compute
+    done
+    log "0" "Shutting down hypervisors: $hostnames_fqdn_list_for_action now.."
+    for host in $hostnames_list_for_action; do
+      openstack_undercloud server stop "$host"
+    done
     log "0" "Waiting for hypervisors to be down with timeout $SHUTDOWN_TIMEOUT seconds"
     SECONDS="clear";
-    local filter
-    filter="$(echo "$computes_hostnames_to_disable"|tr '\n' '|'|sed 's/|$//g')"
     while [ "$SECONDS" -lt "$SHUTDOWN_TIMEOUT" ]; do
       openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " up$" &>/dev/null || break
       sleep 10
     done
-    openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " up$" &>/dev/null
     local RETVAL
+    openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " up$" &>/dev/null
     RETVAL="$?"
     if [ "$RETVAL" -eq 0 ]; then
-      compute_hostnames_to_disable_still_up="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"| \
-                                                 grep -E "$filter"|grep " up$"|awk '{print $1}'|sort)"
-      log "1" "Computes still up after timeout: $( echo $compute_hostnames_to_disable_still_up)"
+      local hostnames_fqdn_list_still_up
+      hostnames_fqdn_list_still_up="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"| \
+                                                 grep -E "$filter"|grep " up$"|awk '{print $1}'|sort|xargs)"
+      log "1" "Hypervisos still up after timeout: $hostnames_fqdn_list_still_up"
     fi
-    log "0" "Disabling nova-compute service for hypervisors: $(echo $computes_hostnames_to_disable) now.."
-    echo "$computes_hostnames_to_disable"| while read -r host; do openstack_overcloud compute service set --enable "$host" nova-compute; done
-  else
-    log "2" "Script in TEST MODE. No action is taken on hypervisors"
-    log "0" "Hypervisors for shutdown: $(echo $computes_hostnames_to_disable)"
+    log "0" "Enabling nova-compute service for hypervisors: $hostnames_fqdn_list_for_action now.."
+    for host_fqdn in $hostnames_fqdn_list_for_action; do
+      openstack_overcloud compute service set --enable "$host_fqdn" nova-compute
+    done
+    return 0
   fi
-}
-
-computes_startup() {
-#function expects global variables
-  local computes_number_to_startup
-  computes_number_to_startup="${computes_number_difference/-/}"
-  local computes_hostnames_to_enable
-  computes_hostnames_to_enable="$(echo "$computes_hostnames_down_with_no_vm"|head -"$computes_number_to_startup")"
-  local computes_hostnames_to_startup
-  computes_hostnames_to_startup="$(echo "$computes_hostnames_down_with_no_vm"|head -"$computes_number_to_startup"|awk -F\. '{print $1}')"
-  print_agg_group_status
-  if [ "$TESTMODE" == "false" ]; then
-    log "0" "Starting up hypervisors: $(echo $computes_hostnames_to_enable) now.."
-    echo "$computes_hostnames_to_startup"| while read -r host; do 
-                                             openstack_undercloud server start "$host"
-                                           done
-    log "0" "Waiting for hypervisors to startup with timeout $STARTUP_TIMEOUT seconds"
+  if [ "$action" == "startup" ]; then
+    log "0" "Starting up hypervisors: $hostnames_fqdn_list_for_action now.."
+    for host in $hostnames_list_for_action; do
+      openstack_undercloud server start "$host"
+    done
+    log "0" "Waiting for hypervisors to be up with timeout $STARTUP_TIMEOUT seconds"
     SECONDS="clear";
-    local filter
-    filter="$(echo "$computes_hostnames_to_enable"|tr '\n' '|'|sed 's/|$//g')"
     while [ "$SECONDS" -lt "$STARTUP_TIMEOUT" ]; do
       openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " down$" &>/dev/null || break
       sleep 10
     done
-    openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " down$" &>/dev/null
     local RETVAL
+    openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " down$" &>/dev/null
     RETVAL="$?"
     if [ "$RETVAL" -eq 0 ]; then
-      compute_hostnames_to_startup_still_down="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"| \
-                                                   grep -E "$filter"|grep " down$"|awk '{print $1}'|sort)"
-      log "1" "Computes still down after timeout: $(echo $compute_hostnames_to_startup_still_down)"
+      local hostnames_fqdn_list_still_down
+      hostnames_fqdn_list_still_down="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"| \
+                                                 grep -E "$filter"|grep " down$"|awk '{print $1}'|sort|xargs)"
+      log "1" "Hypervisos still down after timeout: $hostnames_fqdn_list_still_down"
     fi
-    log "0" "Enabling nova-compute service for hypervisors: $(echo $computes_hostnames_to_enable) now.."
-    echo "$computes_hostnames_to_enable"| while read -r host; do 
-                                            openstack_overcloud compute service set --enable "$host" nova-compute
-                                          done
-  else
-    log "2" "Script in TEST MODE. No action is taken on hypervisors"
-    log "0" "Hypervisors for startup: $(echo $computes_hostnames_to_enable)"
+    return 0
   fi
+  return 1
 }
 
 run_on_agg_groups() {
 #function expects global variables
+  local hostnames_fqdn_list
   for agg_group in $(echo "$AGG_GROUPS"|tr ',' ' ')
   do
     computes_number_difference=""
     get_agg_group_status "$agg_group"
-    local RETVAL
+    local RETVAL hostnames_fqdn_list_in_agg_group
     RETVAL="$?"
+    print_agg_group_status
+    hostnames_fqdn_list_in_agg_group="$hyp_list"
     if [ "$RETVAL" -eq 0 ]; then
       #NO ACTION
       if [ "$computes_number_difference" -eq 0 ]; then
-        print_agg_group_status
         log "0" "No action needed."
       fi
-      #COMPUTES SHUTDOWN
-      if [ "$computes_number_difference" -gt 0 ]; then
-        computes_shutdown
-      fi
-      #COMPUTES STARTUP
-      if [ "$computes_number_difference" -lt 0 ]; then
-        computes_startup
+      if [ "$TESTMODE" == "true" ]; then
+          log "2" "Script in TEST MODE. No action is taken on hypervisors"
+      else
+        #COMPUTES SHUTDOWN
+        if [ "$computes_number_difference" -gt 0 ]; then
+          hostnames_fqdn_list="$(echo "$hostnames_fqdn_list_in_agg_group"| \
+                                   grep " 0$"|grep " up "|awk '{print $1}'|tail -"$computes_number_difference"|xargs)"
+          computes_action "shutdown" "$hostnames_fqdn_list"
+        fi
+        #COMPUTES STARTUP
+        if [ "$computes_number_difference" -lt 0 ]; then
+          computes_number_difference="${computes_number_difference/-/}"
+          hostnames_fqdn_list="$(echo "$hostnames_fqdn_list_in_agg_group"| \
+                                   grep " 0$"|grep " down "|awk '{print $1}'|head -"$computes_number_difference"|xargs)"
+          computes_action "startup" "$hostnames_fqdn_list"
+        fi
       fi
     fi
   done
