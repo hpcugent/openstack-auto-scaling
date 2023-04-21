@@ -20,34 +20,44 @@ usage() {
   cat 1>&2 << EOF_USAGE
   Usage: $SCRIPT_NAME -c <configrc_file> [-t] [-u <UCUPN>] [-l] [-h]
   Options: 
-  -c, --config <configrc_file> - Location of configrc file which is sourced by this script to provide following values
-                                 UNDERCLOUDRC - openstack rc file location for admin access to undercloud
-                                                (default: $UNDERCLOUDRC)
-                                 OVERCLOUDRC - openstack rc file location for admin access to overcloud
-                                               (default: $OVERCLOUDRC)
-                                 LOCKFILE - location of readable lock file
-                                            if file exist script won't take action on cloud hypervisors
-                                            (default: $LOCKFILE)
-                                 UCUPN - Unused Computes Up Percentage Number
-                                         value must be between 1 and 100
-                                         (no default value but mandatory)
-                                 AGG_GROUPS - coma separated aggregation groups on which this script will be auto-scaling hypervisors
-                                              script expects that no hypervisor is configured in more than one aggregation group from AGG_GROUPS list
-                                              (no default value but mandatory)
-                                 SHUTDOWN_TIMEOUT - maximum number of seconds as waiting timeout for hypervisor shutdown
-                                                    (default: $SHUTDOWN_TIMEOUT)
-                                 STARTUP_TIMEOUT - maximum number of seconds as waiting timeout for hypervisor startup
-                                                   (default: $STARTUP_TIMEOUT)
-                                 PIDFILE - location of writable pid file
-                                           prior any script run check for already running script is done using this file
-                                           (default: $PIDFILE)
-  -t, --testmode - test mode, no action will be taken on hypervisors
-  -u, --ucupn <UCUPN> - UCUPN override 
-                        value must be between 1 and 100
-                        value will be used instead of config value for all nodes startup purposes prior upgrades or changes to overcloud
-  -l, --lockfile-override - LOCKFILE override 
-                            in case of this argument lockfile will be ignored for all nodes startup purposes prior upgrades or changes to overcloud
-  -h - help
+
+  -c, --config <configrc_file>
+      Location of configrc file which is sourced by this script to provide following values
+      UNDERCLOUDRC - openstack rc file location for admin access to undercloud
+                     (default: $UNDERCLOUDRC)
+      OVERCLOUDRC - openstack rc file location for admin access to overcloud
+                    (default: $OVERCLOUDRC)
+      LOCKFILE - location of readable lock file
+                 if file exist script won't take action on cloud hypervisors
+                 (default: $LOCKFILE)
+      UCUPN - Unused Computes Up Percentage Number
+              value must be between 1 and 100
+              (no default value but mandatory)
+      AGG_GROUPS - coma separated aggregation groups on which this script will be auto-scaling hypervisors
+                   script expects that no hypervisor is configured in more than one aggregation group from AGG_GROUPS list
+                   (no default value but mandatory)
+      SHUTDOWN_TIMEOUT - maximum number of seconds as waiting timeout for hypervisor shutdown
+                         (default: $SHUTDOWN_TIMEOUT)
+      STARTUP_TIMEOUT - maximum number of seconds as waiting timeout for hypervisor startup
+                        (default: $STARTUP_TIMEOUT)
+      PIDFILE - location of writable pid file
+                prior any script run check for already running script is done using this file
+                (default: $PIDFILE)
+
+  -t, --testmode
+      test mode, no action will be taken on hypervisors
+
+  -u, --ucupn <UCUPN>
+      UCUPN override 
+      value must be between 1 and 100
+      value will be used instead of config value for all nodes startup purposes prior upgrades or changes to overcloud
+
+  -l, --lockfile-override
+      LOCKFILE override 
+      in case of this argument lockfile will be ignored for all nodes startup purposes prior upgrades or changes to overcloud
+
+  -h
+      help
 EOF_USAGE
 }
 
