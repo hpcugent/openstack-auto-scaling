@@ -81,10 +81,11 @@ openstack_overcloud() {
 
 openstack_api_access_check() {
   test -r "$UNDERCLOUDRC" -a -f "$UNDERCLOUDRC" && openstack_undercloud catalog list &>/dev/null
-  local RETVAL=$?
+  local RETVAL
+  RETVAL="$?"
   [ "$RETVAL" -ne 0 ] && log "1" "Unable to access undercloud catalog using $UNDERCLOUDRC as a rc file" && exit 1
   test -r "$OVERCLOUDRC" -a -f "$OVERCLOUDRC" && openstack_overcloud catalog list &>/dev/null
-  local RETVAL=$?
+  RETVAL="$?"
   [ "$RETVAL" -ne 0 ] && log "1" "Unable to access overcloud catalog using $OVERCLOUDRC as a rc file" && exit 1
 }
 
@@ -133,7 +134,8 @@ get_agg_group_status() {
 #usage: get_agg_group_status AGG_GROUP
   local agg_group="$1"
   openstack_overcloud aggregate show "$agg_group" &>/dev/null
-  RETVAL=$?
+  local RETVAL
+  RETVAL="$?"
   if [ "$RETVAL" -ne 0 ]; then
     log "1" "Unable to find aggregation group $agg_group" && return 1
   else
@@ -205,7 +207,8 @@ computes_shutdown() {
       sleep 10
     done
     openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " up$" &>/dev/null
-    local RETVAL=$?
+    local RETVAL
+    RETVAL="$?"
     if [ "$RETVAL" -eq 0 ]; then
       compute_hostnames_to_disable_still_up="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"| \
                                                  grep -E "$filter"|grep " up$"|awk '{print $1}'|sort)"
@@ -242,7 +245,8 @@ computes_startup() {
       sleep 10
     done
     openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"|grep -E "$filter"|grep " down$" &>/dev/null
-    local RETVAL=$?
+    local RETVAL
+    RETVAL="$?"
     if [ "$RETVAL" -eq 0 ]; then
       compute_hostnames_to_startup_still_down="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "State"| \
                                                    grep -E "$filter"|grep " down$"|awk '{print $1}'|sort)"
@@ -264,6 +268,7 @@ run_on_agg_groups() {
   do
     computes_number_difference=""
     get_agg_group_status "$agg_group"
+    local RETVAL
     RETVAL="$?"
     if [ "$RETVAL" -eq 0 ]; then
       #NO ACTION
