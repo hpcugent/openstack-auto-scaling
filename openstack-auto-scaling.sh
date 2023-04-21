@@ -260,10 +260,9 @@ run_on_agg_groups() {
   for agg_group in $(echo "$AGG_GROUPS"|tr ',' ' ')
   do
     computes_number_difference=""
-    get_agg_group_status "$agg_group"
     local RETVAL hostnames_fqdn_list_in_agg_group
+    get_agg_group_status "$agg_group" && print_agg_group_status
     RETVAL="$?"
-    print_agg_group_status
     hostnames_fqdn_list_in_agg_group="$hyp_list"
     if [ "$RETVAL" -eq 0 ]; then
       #NO ACTION
@@ -287,6 +286,8 @@ run_on_agg_groups() {
           computes_action "startup" "$hostnames_fqdn_list"
         fi
       fi
+    else
+      log "1" "Unable to get hypervisors status for aggregation group $agg_group"
     fi
   done
 }
