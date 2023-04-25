@@ -1,1 +1,1 @@
-*/10 * * * * stack /bin/bash /usr/bin/openstack-auto-scaling.sh
+*/10 * * * * stack /bin/bash /usr/bin/openstack-auto-scaling.sh >/dev/null
