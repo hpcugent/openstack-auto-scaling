@@ -2,7 +2,7 @@
 
 SCRIPT_NAME="$(basename "$0")"
 RETVAL=""
-CONFIG=""
+CONFIG="/etc/openstack-auto-scaling/openstack-auto-scalingrc"
 TESTMODE="false"
 UNDERCLOUDRC="/home/stack/stackrc"
 OVERCLOUDRC="/home/stack/templates/overcloudrc"
@@ -18,10 +18,11 @@ PID_TIMEOUT="1200"
 
 usage() {
   cat 1>&2 << EOF_USAGE
-  Usage: $SCRIPT_NAME -c <configrc_file> [-t] [-u <UCUPN>] [-l] [-h]
+  Usage: $SCRIPT_NAME [-c <configrc_file>] [-t] [-u <UCUPN>] [-l] [-h]
   Options: 
 
   -c, --config <configrc_file>
+      (default: $CONFIG)
       Location of configrc file which is sourced by this script to provide following values
       UNDERCLOUDRC - openstack rc file location for admin access to undercloud
                      (default: $UNDERCLOUDRC)
@@ -100,7 +101,7 @@ openstack_api_access_check() {
 }
 
 config_check() {
-  [ "$1" == "" ] && log "1" "Missing mandatory -c|--config argument" && exit_abnormal
+  [ "$1" == "" ] && log "1" "Script CONFIG variable is empty" && exit_abnormal
   if ! test -r "$1" -a -f "$1"; then
     log "1" "Unable to read configrc file $1"
     exit_abnormal
