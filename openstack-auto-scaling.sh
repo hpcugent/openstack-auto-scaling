@@ -165,9 +165,9 @@ get_agg_group_status() {
     [ "$IGNORE_HYPERVISORS" != "" ] && hyp_list="$(echo "$hyp_list"|grep -vE "$ignore_hypervisors_filter")"
 
     local computes_number_up_with_vm
-    computes_number="$(echo "$hyp_list"|wc -l)"
-    computes_number_up_with_vm="$(echo "$hyp_list"|grep " up "|grep -vc " 0$")"
-    computes_number_up_before_logic="$(echo "$hyp_list"|grep -c " up ")"
+    computes_number="$(echo -n "$hyp_list"|grep -c "^")"
+    computes_number_up_with_vm="$(echo -n "$hyp_list"|grep " up "|grep -vc " 0$")"
+    computes_number_up_before_logic="$(echo -n "$hyp_list"|grep -c " up ")"
     computes_number_up_after_logic="$((computes_number_up_with_vm + computes_number * UCUPN / 100))"
     [ "$computes_number_up_after_logic" -gt "$computes_number" ] && \
       computes_number_up_after_logic="$computes_number"
