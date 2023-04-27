@@ -1,7 +1,7 @@
 Summary: Openstack script for auto-scaling compute nodes
 Name: openstack-auto-scaling
 Version: 1.0.0
-Release: 1%{?dist}-ug
+Release: 1ug%{?dist}
 License: GPL
 Group: Applications/Openstack
 Source: %{name}-%{version}.tar.gz
@@ -10,6 +10,8 @@ Requires: bash
 Requires: python3-openstackclient
 Requires: util-linux
 Requires: jq
+
+%global debug_package %{nil}
 
 %description
 Openstack script for auto-scaling compute nodes
