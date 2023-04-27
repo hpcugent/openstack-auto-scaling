@@ -60,7 +60,7 @@ usage() {
       LOCKFILE override 
       in case of this argument lockfile will be ignored for all nodes startup purposes prior upgrades or changes to overcloud
 
-  -h
+  -h, --help
       help
 EOF_USAGE
 }
