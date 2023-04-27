@@ -14,6 +14,7 @@ AGG_GROUPS=""
 SHUTDOWN_TIMEOUT="120"
 STARTUP_TIMEOUT="900"
 PIDFILE="/home/stack/openstack-auto-scaling.pid"
+IGNORE_HYPERVISORS=""
 PID_TIMEOUT="1200"
 
 usage() {
@@ -44,6 +45,8 @@ usage() {
       PIDFILE - location of writable pid file
                 prior any script run check for already running script is done using this file
                 (default: $PIDFILE)
+      IGNORE_HYPERVISORS - coma separated list of hypervisors to ignore for any script action or percentage computation
+                           (default: empty)
 
   -t, --testmode
       test mode, no action will be taken on hypervisors
@@ -151,13 +154,15 @@ get_agg_group_status() {
   if [ "$RETVAL" -ne 0 ]; then
     log "1" "Unable to find aggregation group $agg_group" && return 1
   else
-    local agg_group_hypervisor_list agg_group_hypervisor_filter
+    local agg_group_hypervisor_list agg_group_hypervisor_filter ignore_hypervisors_filter
+    ignore_hypervisors_filter="$(echo "$IGNORE_HYPERVISORS"|tr ',' '|'|sed 's/|$//g')"
     agg_group_hypervisor_list="$(openstack_overcloud aggregate show "$agg_group" -f json -c hosts |jq --raw-output '.hosts[]')"
     agg_group_hypervisor_filter="$(echo "$agg_group_hypervisor_list"|tr '\n' '|'|sed 's/|$//g')"
 
     #below variable necessary as global
     hyp_list="$(openstack_overcloud hypervisor list --long -f value -c "Hypervisor Hostname" -c "vCPUs Used" -c "State"| \
                   grep -E "$agg_group_hypervisor_filter"|sort)"
+    [ "$IGNORE_HYPERVISORS" != "" ] && hyp_list="$(echo "$hyp_list"|grep -vE "$ignore_hypervisors_filter")"
 
     local computes_number_up_with_vm
     computes_number="$(echo "$hyp_list"|wc -l)"
@@ -183,6 +188,8 @@ get_agg_group_status() {
 
 print_agg_group_status() {
 #function expects global variables
+  [ "$IGNORE_HYPERVISORS" != "" ] && \
+    log "0" "Ignoring following hypervisors: $IGNORE_HYPERVISORS"
   log "0" "Percentage of empty computes configured: $UCUPN%"
   log "0" "Number of hypervisors in aggregation group $agg_group: $computes_number"
   log "0" "Number of hypervisors in aggregation group $agg_group up: $computes_number_up_before_logic"
@@ -328,7 +335,7 @@ done
 export CONFIG
 config_check "$CONFIG"
 source "$CONFIG" 2>/dev/null
-export UNDERCLOUDRC OVERCLOUDRC LOCKFILE UCUPN AGG_GROUPS SHUTDOWN_TIMEOUT STARTUP_TIMEOUT PIDFILE
+export UNDERCLOUDRC OVERCLOUDRC LOCKFILE UCUPN AGG_GROUPS SHUTDOWN_TIMEOUT STARTUP_TIMEOUT PIDFILE IGNORE_HYPERVISORS
 [ "$UCUPN_OVERRIDE" != "" ] && UCUPN="$UCUPN_OVERRIDE"
 input_check
 
